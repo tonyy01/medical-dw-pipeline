@@ -1,0 +1,29 @@
+# ============================================================
+# dbt Profiles — 数据库连接配置
+# ============================================================
+
+medical_dw:
+  outputs:
+    dev:
+      type: postgres
+      threads: 4
+      host: "{{ env_var('PGHOST', 'localhost') }}"
+      port: "{{ env_var('PGPORT', '5432') | int }}"
+      user: "{{ env_var('PGUSER', 'postgres') }}"
+      password: "{{ env_var('PGPASSWORD', 'postgres') }}"
+      dbname: "{{ env_var('PGDATABASE', 'medical_dw') }}"
+      schema: public
+      keepalives_idle: 0
+
+    prod:
+      type: postgres
+      threads: 8
+      host: "{{ env_var('PGHOST') }}"
+      port: "{{ env_var('PGPORT', '5432') | int }}"
+      user: "{{ env_var('PGUSER') }}"
+      password: "{{ env_var('PGPASSWORD') }}"
+      dbname: "{{ env_var('PGDATABASE', 'medical_dw') }}"
+      schema: public
+      keepalives_idle: 0
+
+  target: dev

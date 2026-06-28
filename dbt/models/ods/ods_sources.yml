@@ -1,0 +1,58 @@
+# ============================================================
+# ODS 层数据源定义
+# 告诉 dbt 原始数据在哪个 schema 的哪些表里
+# ============================================================
+
+version: 2
+
+sources:
+  - name: ods
+    schema: ods
+    description: "操作数据层 — Synthea 原始数据的直接加载"
+    tables:
+      - name: patients
+        description: "病人基本信息"
+        columns:
+          - name: patient_id
+            tests: [unique, not_null]
+
+      - name: encounters
+        description: "就诊记录"
+        columns:
+          - name: encounter_id
+            tests: [unique, not_null]
+          - name: patient_id
+            tests: [not_null]
+
+      - name: conditions
+        description: "诊断/条件记录"
+        columns:
+          - name: condition_id
+            tests: [unique, not_null]
+
+      - name: medications
+        description: "用药记录"
+        columns:
+          - name: medication_id
+            tests: [unique, not_null]
+
+      - name: observations
+        description: "检验检查结果"
+
+      - name: imaging_studies
+        description: "影像检查记录"
+
+      - name: procedures
+        description: "手术/操作记录"
+
+      - name: organizations
+        description: "医疗机构信息"
+
+      - name: providers
+        description: "医护人员信息"
+
+      - name: payer_transitions
+        description: "支付方变更历史"
+
+      - name: payers
+        description: "支付方（医保/商保）信息"

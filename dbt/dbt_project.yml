@@ -1,0 +1,51 @@
+# ============================================================
+# dbt 项目配置 — 医疗数据仓库维度建模
+# ============================================================
+
+name: "medical_dw"
+version: "1.0.0"
+config-version: 2
+profile: "medical_dw"
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+
+target-path: "target"
+clean-targets:
+  - "target"
+  - "logs"
+
+models:
+  medical_dw:
+    ods:
+      +materialized: view
+      +schema: ods
+      +tags: ["ods"]
+
+    dwd:
+      +materialized: table
+      +schema: dwd
+      +tags: ["dwd"]
+
+    dws:
+      +materialized: table
+      +schema: dws
+      +tags: ["dws"]
+
+    ads:
+      +materialized: table
+      +schema: ads
+      +tags: ["ads"]
+
+    # dim_date 表由 dbt 生成（不需要外部依赖）
+    dwd:
+      dim_date:
+        +materialized: table
+        +tags: ["dwd", "dimension"]
+
+seeds:
+  +schema: ods
+  +tags: ["seed"]

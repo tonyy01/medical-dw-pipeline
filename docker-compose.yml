@@ -1,0 +1,37 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: medical-dw-postgres
+    environment:
+      POSTGRES_DB: medical_dw
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./sql/init_db.sql:/docker-entrypoint-initdb.d/01-init_db.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d medical_dw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # pgadmin（可选的可视化管理工具）
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: medical-dw-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@zhujiang-hospital.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+    ports:
+      - "5050:80"
+    depends_on:
+      - postgres
+    profiles:
+      - gui  # 默认不启动，需要时 docker compose --profile gui up -d
+
+volumes:
+  postgres-data:

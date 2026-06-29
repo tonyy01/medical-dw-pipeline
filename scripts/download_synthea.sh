@@ -10,9 +10,9 @@ PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SYNTHEA_DIR="$PROJECT_DIR/synthea"
 OUTPUT_DIR="$SYNTHEA_DIR/output"
 
-SYNTHEA_VERSION="2.10.0"
-SYNTHEA_JAR="$SYNTHEA_DIR/synthea.jar"
-SYNTHEA_URL="https://github.com/synthetichealth/synthea/releases/download/v${SYNTHEA_VERSION}/synthea-${SYNTHEA_VERSION}.jar"
+SYNTHEA_JAR_NAME="synthea-with-dependencies.jar"
+SYNTHEA_JAR="$SYNTHEA_DIR/$SYNTHEA_JAR_NAME"
+SYNTHEA_URL="https://github.com/synthetichealth/synthea/releases/download/master-branch-latest/${SYNTHEA_JAR_NAME}"
 
 # 颜色输出
 RED='\033[0;31m'
@@ -45,7 +45,7 @@ download_synthea() {
         return
     fi
     mkdir -p "$SYNTHEA_DIR"
-    echo "下载 Synthea v${SYNTHEA_VERSION} ..."
+    echo "下载 Synthea (最新版) ..."
     curl -L -o "$SYNTHEA_JAR" "$SYNTHEA_URL"
     info "Synthea 下载完成"
 }

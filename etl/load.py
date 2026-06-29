@@ -64,7 +64,7 @@ def load_dataframe(
             con=engine,
             if_exists=if_exists,
             index=False,
-            method="multi",
+            method=None,
             chunksize=bs,
         )
         logger.info("写入 %s: %d 行", table_name, rows)

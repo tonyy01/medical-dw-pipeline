@@ -6,356 +6,280 @@ Synthea 原始 CSV → 清洗后的 DataFrame（可加载到 ODS 层）
 from __future__ import annotations
 
 import logging
-from datetime import datetime
+import uuid
 
 import pandas as pd
 
 logger = logging.getLogger(__name__)
 
 
-def clean_patients(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗病人数据"""
-    df = df.copy()
+# ──────────────────────────────────────────────
+# 辅助函数
+# ──────────────────────────────────────────────
 
-    # 日期列转换
-    date_cols = ["BIRTHDATE", "DEATHDATE"]
-    for col in date_cols:
+
+def _generate_id(n: int) -> list[str]:
+    """为没有自然主键的表生成合成 ID"""
+    return [str(uuid.uuid4()) for _ in range(n)]
+
+
+def _coerce_dates(df: pd.DataFrame, cols: list[str]) -> None:
+    for col in cols:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce")
 
-    # 标准化性别
+
+def _coerce_numeric(df: pd.DataFrame, cols: list[str]) -> None:
+    for col in cols:
+        if col in df.columns:
+            df[col] = pd.to_numeric(df[col], errors="coerce")
+
+
+def _rename_and_select(df: pd.DataFrame, rename_map: dict[str, str], expected_cols: list[str]) -> pd.DataFrame:
+    df = df.rename(columns=rename_map)
+    existing = [c for c in expected_cols if c in df.columns]
+    return df[existing]
+
+
+# ──────────────────────────────────────────────
+# 各表清洗函数
+# ──────────────────────────────────────────────
+
+
+def clean_patients(df: pd.DataFrame) -> pd.DataFrame:
+    """清洗病人数据"""
+    df = df.copy()
+    _coerce_dates(df, ["BIRTHDATE", "DEATHDATE"])
+    _coerce_numeric(df, ["INCOME", "HEALTHCARE_EXPENSES", "HEALTHCARE_COVERAGE"])
+
     if "GENDER" in df.columns:
         df["GENDER"] = df["GENDER"].str.upper().str.strip()
 
-    # 收入列转为数值
-    if "INCOME" in df.columns:
-        df["INCOME"] = pd.to_numeric(df["INCOME"], errors="coerce")
-
-    # 标准列名重命名（大写 → 小写 + 下划线）
     rename_map = {
-        "Id": "patient_id",
-        "BIRTHDATE": "birth_date",
-        "DEATHDATE": "death_date",
-        "GENDER": "gender",
-        "RACE": "race",
-        "ETHNICITY": "ethnicity",
-        "MARITAL": "marital_status",
-        "LANGUAGE": "language",
-        "BLOODTYPE": "blood_type",
-        "CITY": "address_city",
-        "STATE": "address_state",
-        "COUNTY": "address_county",
-        "ZIP": "address_zip",
-        "INCOME": "income",
+        "Id": "patient_id", "BIRTHDATE": "birth_date", "DEATHDATE": "death_date",
+        "GENDER": "gender", "RACE": "race", "ETHNICITY": "ethnicity",
+        "MARITAL": "marital_status", "BLOODTYPE": "blood_type",
+        "CITY": "address_city", "STATE": "address_state", "COUNTY": "address_county",
+        "ZIP": "address_zip", "INCOME": "income",
         "HEALTHCARE_EXPENSES": "healthcare_expenses",
         "HEALTHCARE_COVERAGE": "healthcare_coverage",
     }
-    df = df.rename(columns=rename_map)
-
-    # 只保留我们定义了的列
-    expected_cols = [
+    expected = [
         "patient_id", "birth_date", "death_date", "gender", "race",
-        "ethnicity", "marital_status", "language", "blood_type",
+        "ethnicity", "marital_status", "blood_type",
         "address_city", "address_state", "address_county", "address_zip",
         "income", "healthcare_expenses", "healthcare_coverage",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  patients: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  patients: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_encounters(df: pd.DataFrame) -> pd.DataFrame:
     """清洗就诊数据"""
     df = df.copy()
-
-    # 时间列转换
-    for col in ["START", "STOP"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-
-    # 金额列
-    for col in ["BASE_ENCOUNTER_COST", "TOTAL_CLAIM_COST", "PAYER_COVERAGE"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+    _coerce_dates(df, ["START", "STOP"])
+    _coerce_numeric(df, ["BASE_ENCOUNTER_COST", "TOTAL_CLAIM_COST", "PAYER_COVERAGE"])
 
     rename_map = {
-        "Id": "encounter_id",
-        "PATIENT": "patient_id",
-        "START": "encounter_start",
-        "STOP": "encounter_stop",
-        "ENCOUNTERCLASS": "encounter_class",
-        "DESCRIPTION": "description",
+        "Id": "encounter_id", "PATIENT": "patient_id",
+        "START": "encounter_start", "STOP": "encounter_stop",
+        "ENCOUNTERCLASS": "encounter_class", "DESCRIPTION": "description",
         "BASE_ENCOUNTER_COST": "base_encounter_cost",
         "TOTAL_CLAIM_COST": "total_claim_cost",
         "PAYER_COVERAGE": "payer_coverage",
-        "REASONCODE": "reasoncode",
-        "REASONDESCRIPTION": "reasondescription",
-        "PROVIDER": "provider_id",
-        "ORGANIZATION": "organization_id",
+        "REASONCODE": "reasoncode", "REASONDESCRIPTION": "reasondescription",
+        "PROVIDER": "provider_id", "ORGANIZATION": "organization_id",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "encounter_id", "patient_id", "encounter_start", "encounter_stop",
         "encounter_class", "description", "base_encounter_cost",
         "total_claim_cost", "payer_coverage", "reasondescription",
         "provider_id", "organization_id",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  encounters: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  encounters: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_conditions(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗诊断/条件数据"""
+    """清洗诊断数据（无 Id 列，生成合成主键）"""
     df = df.copy()
+    _coerce_dates(df, ["START", "STOP"])
 
-    for col in ["START", "STOP"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
-
+    df["condition_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "condition_id",
-        "PATIENT": "patient_id",
-        "ENCOUNTER": "encounter_id",
-        "CODE": "code",
-        "DESCRIPTION": "description",
-        "START": "condition_start",
-        "STOP": "condition_stop",
+        "PATIENT": "patient_id", "ENCOUNTER": "encounter_id",
+        "CODE": "code", "DESCRIPTION": "description",
+        "START": "condition_start", "STOP": "condition_stop",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "condition_id", "patient_id", "encounter_id", "code",
         "description", "condition_start", "condition_stop",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  conditions: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  conditions: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_medications(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗用药数据"""
+    """清洗用药数据（无 Id 列，生成合成主键）"""
     df = df.copy()
-
-    for col in ["START", "STOP"]:
-        if col in df.columns:
-            df[col] = pd.to_datetime(df[col], errors="coerce")
-
-    for col in ["BASE_COST", "PAYER_COVERAGE", "TOTALCOST"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
+    _coerce_dates(df, ["START", "STOP"])
+    _coerce_numeric(df, ["BASE_COST", "PAYER_COVERAGE", "TOTALCOST", "DISPENSES"])
 
     if "DISPENSES" in df.columns:
-        df["DISPENSES"] = pd.to_numeric(df["DISPENSES"], errors="coerce").fillna(0).astype(int)
+        df["DISPENSES"] = df["DISPENSES"].fillna(0).astype(int)
 
+    df["medication_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "medication_id",
-        "PATIENT": "patient_id",
-        "ENCOUNTER": "encounter_id",
-        "CODE": "code",
-        "DESCRIPTION": "description",
-        "BASE_COST": "base_cost",
-        "PAYER_COVERAGE": "payer_coverage",
-        "DISPENSES": "dispenses",
-        "TOTALCOST": "total_cost",
-        "REASONDESCRIPTION": "reasondescription",
-        "START": "start_date",
-        "STOP": "stop_date",
+        "PATIENT": "patient_id", "ENCOUNTER": "encounter_id",
+        "CODE": "code", "DESCRIPTION": "description",
+        "BASE_COST": "base_cost", "PAYER_COVERAGE": "payer_coverage",
+        "DISPENSES": "dispenses", "TOTALCOST": "total_cost",
+        "REASONCODE": "reasoncode", "REASONDESCRIPTION": "reasondescription",
+        "START": "start_date", "STOP": "stop_date",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "medication_id", "patient_id", "encounter_id", "code",
         "description", "base_cost", "payer_coverage", "dispenses",
         "total_cost", "reasondescription", "start_date", "stop_date",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  medications: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  medications: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_observations(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗检验检查数据"""
+    """清洗检验检查数据（无 Id 列，生成合成主键）"""
     df = df.copy()
+    _coerce_dates(df, ["DATE"])
 
-    if "DATE" in df.columns:
-        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
-
+    # VALUE 列可能是文本或数值，保持原样
+    df["observation_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "observation_id",
-        "PATIENT": "patient_id",
-        "ENCOUNTER": "encounter_id",
-        "CATEGORY": "category",
-        "CODE": "code",
-        "DESCRIPTION": "description",
-        "VALUE": "value",
-        "UNITS": "units",
-        "DATE": "observation_date",
+        "PATIENT": "patient_id", "ENCOUNTER": "encounter_id",
+        "CATEGORY": "category", "CODE": "code",
+        "DESCRIPTION": "description", "VALUE": "value",
+        "UNITS": "units", "DATE": "observation_date",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "observation_id", "patient_id", "encounter_id", "category",
         "code", "description", "value", "units", "observation_date",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  observations: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  observations: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_imaging_studies(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗影像数据"""
+    """清洗影像数据（Synthea Id 可能有重复，覆盖为合成主键）"""
     df = df.copy()
+    _coerce_dates(df, ["DATE"])
 
-    if "DATE" in df.columns:
-        df["DATE"] = pd.to_datetime(df["DATE"], errors="coerce")
-
+    df["imaging_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "imaging_id",
-        "PATIENT": "patient_id",
-        "ENCOUNTER": "encounter_id",
+        "PATIENT": "patient_id", "ENCOUNTER": "encounter_id",
         "BODYSITE_CODE": "bodysite_code",
         "BODYSITE_DESCRIPTION": "bodysite_description",
         "MODALITY_CODE": "modality_code",
         "MODALITY_DESCRIPTION": "modality_description",
-        "SOP_CODE": "sop_code",
-        "SOP_DESCRIPTION": "sop_description",
+        "SOP_CODE": "sop_code", "SOP_DESCRIPTION": "sop_description",
         "DATE": "imaging_date",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "imaging_id", "patient_id", "encounter_id",
         "bodysite_code", "bodysite_description",
         "modality_code", "modality_description",
         "sop_code", "sop_description", "imaging_date",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  imaging_studies: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  imaging_studies: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_procedures(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗手术/操作数据"""
+    """清洗手术/操作数据（无 Id 列，生成合成主键）"""
     df = df.copy()
+    _coerce_dates(df, ["START", "STOP"])
+    _coerce_numeric(df, ["BASE_COST"])
 
-    if "BASE_COST" in df.columns:
-        df["BASE_COST"] = pd.to_numeric(df["BASE_COST"], errors="coerce")
-
+    df["procedure_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "procedure_id",
-        "PATIENT": "patient_id",
-        "ENCOUNTER": "encounter_id",
-        "CODE": "code",
-        "DESCRIPTION": "description",
+        "PATIENT": "patient_id", "ENCOUNTER": "encounter_id",
+        "CODE": "code", "DESCRIPTION": "description",
         "BASE_COST": "base_cost",
     }
-    df = df.rename(columns=rename_map)
-
-    expected_cols = [
+    expected = [
         "procedure_id", "patient_id", "encounter_id",
         "code", "description", "base_cost",
     ]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-
-    logger.info("  procedures: %d 行, %d 列", len(df), len(df.columns))
-    return df
+    logger.info("  procedures: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_organizations(df: pd.DataFrame) -> pd.DataFrame:
     """清洗机构数据"""
     rename_map = {
-        "Id": "organization_id",
-        "NAME": "name",
-        "CITY": "address_city",
-        "STATE": "address_state",
-        "ZIP": "address_zip",
-        "PHONE": "phone",
+        "Id": "organization_id", "NAME": "name",
+        "CITY": "address_city", "STATE": "address_state",
+        "ZIP": "address_zip", "PHONE": "phone",
     }
-    df = df.rename(columns=rename_map)
-    expected_cols = ["organization_id", "name", "address_city", "address_state", "address_zip", "phone"]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-    logger.info("  organizations: %d 行", len(df))
-    return df
+    expected = ["organization_id", "name", "address_city", "address_state", "address_zip", "phone"]
+    logger.info("  organizations: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_providers(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗医生数据"""
-    rename_map = {
-        "Id": "provider_id",
-        "ORGANIZATION": "organization_id",
-        "NAME": "name",
-        "GENDER": "gender",
-        "SPECIALTY": "specialty",
-        "CITY": "address_city",
-        "STATE": "address_state",
-        "ZIP": "address_zip",
-    }
-    df = df.rename(columns=rename_map)
+    """清洗医护人员数据"""
     if "GENDER" in df.columns:
         df["GENDER"] = df["GENDER"].str.upper().str.strip()
-    expected_cols = ["provider_id", "organization_id", "name", "gender", "specialty",
-                     "address_city", "address_state", "address_zip"]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-    logger.info("  providers: %d 行", len(df))
-    return df
+
+    rename_map = {
+        "Id": "provider_id", "ORGANIZATION": "organization_id",
+        "NAME": "name", "GENDER": "gender",
+        "SPECIALITY": "specialty",  # 注意：Synthea 列名是 SPECIALITY（少个 L ？实际是 SPECIALITY）
+        "CITY": "address_city", "STATE": "address_state", "ZIP": "address_zip",
+    }
+    expected = [
+        "provider_id", "organization_id", "name", "gender", "specialty",
+        "address_city", "address_state", "address_zip",
+    ]
+    logger.info("  providers: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_payer_transitions(df: pd.DataFrame) -> pd.DataFrame:
-    """清洗支付方变更数据"""
-    for col in ["OWNERSHIP_START", "OWNERSHIP_END"]:
+    """清洗支付方变更数据（无 Id 列，生成合成主键）"""
+    df = df.copy()
+    for col in ["START_DATE", "END_DATE"]:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors="coerce").dt.date
 
+    df["transition_id"] = _generate_id(len(df))
     rename_map = {
-        "Id": "transition_id",
-        "PATIENT": "patient_id",
-        "MEMBER_ID": "member_id",
+        "PATIENT": "patient_id", "MEMBERID": "member_id",
         "PAYER": "payer_id",
-        "OWNERSHIP_START": "ownership_start",
-        "OWNERSHIP_END": "ownership_end",
+        "START_DATE": "ownership_start", "END_DATE": "ownership_end",
     }
-    df = df.rename(columns=rename_map)
-    expected_cols = ["transition_id", "patient_id", "member_id", "payer_id",
-                     "ownership_start", "ownership_end"]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-    logger.info("  payer_transitions: %d 行", len(df))
-    return df
+    expected = [
+        "transition_id", "patient_id", "member_id", "payer_id",
+        "ownership_start", "ownership_end",
+    ]
+    logger.info("  payer_transitions: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
 def clean_payers(df: pd.DataFrame) -> pd.DataFrame:
     """清洗支付方数据"""
-    for col in ["AMOUNT_COVERED", "AMOUNT_UNCOVERED", "REVENUE"]:
-        if col in df.columns:
-            df[col] = pd.to_numeric(df[col], errors="coerce")
-    for col in ["COVERED_ENCOUNTERS", "UNCOVERED_ENCOUNTERS", "COVERED_MEDICATIONS",
-                "UNCOVERED_MEDICATIONS", "COVERED_PROCEDURES", "UNCOVERED_PROCEDURES",
-                "COVERED_IMMUNIZATIONS", "UNCOVERED_IMMUNIZATIONS"]:
+    _coerce_numeric(df, ["AMOUNT_COVERED", "AMOUNT_UNCOVERED", "REVENUE"])
+    count_cols = [
+        "COVERED_ENCOUNTERS", "UNCOVERED_ENCOUNTERS",
+        "COVERED_MEDICATIONS", "UNCOVERED_MEDICATIONS",
+        "COVERED_PROCEDURES", "UNCOVERED_PROCEDURES",
+        "COVERED_IMMUNIZATIONS", "UNCOVERED_IMMUNIZATIONS",
+    ]
+    for col in count_cols:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
 
     rename_map = {
-        "Id": "payer_id",
-        "NAME": "name",
-        "AMOUNT_COVERED": "amount_covered",
-        "AMOUNT_UNCOVERED": "amount_uncovered",
+        "Id": "payer_id", "NAME": "name",
+        "AMOUNT_COVERED": "amount_covered", "AMOUNT_UNCOVERED": "amount_uncovered",
         "REVENUE": "revenue",
         "COVERED_ENCOUNTERS": "covered_encounters",
         "UNCOVERED_ENCOUNTERS": "uncovered_encounters",
@@ -366,19 +290,21 @@ def clean_payers(df: pd.DataFrame) -> pd.DataFrame:
         "COVERED_IMMUNIZATIONS": "covered_immunizations",
         "UNCOVERED_IMMUNIZATIONS": "uncovered_immunizations",
     }
-    df = df.rename(columns=rename_map)
-    expected_cols = ["payer_id", "name", "amount_covered", "amount_uncovered", "revenue",
-                     "covered_encounters", "uncovered_encounters",
-                     "covered_medications", "uncovered_medications",
-                     "covered_procedures", "uncovered_procedures",
-                     "covered_immunizations", "uncovered_immunizations"]
-    existing_cols = [c for c in expected_cols if c in df.columns]
-    df = df[existing_cols]
-    logger.info("  payers: %d 行", len(df))
-    return df
+    expected = [
+        "payer_id", "name", "amount_covered", "amount_uncovered", "revenue",
+        "covered_encounters", "uncovered_encounters",
+        "covered_medications", "uncovered_medications",
+        "covered_procedures", "uncovered_procedures",
+        "covered_immunizations", "uncovered_immunizations",
+    ]
+    logger.info("  payers: %d 行 → %d 列", len(df), len(expected))
+    return _rename_and_select(df, rename_map, expected)
 
 
-# 清洗函数映射表：表名 → 对应的清洗函数
+# ──────────────────────────────────────────────
+# 调度
+# ──────────────────────────────────────────────
+
 CLEAN_FUNCTIONS = {
     "patients": clean_patients,
     "encounters": clean_encounters,

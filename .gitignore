@@ -37,3 +37,4 @@ airflow/logs/
 
 # Generated
 *.generated.sql
+*.jar

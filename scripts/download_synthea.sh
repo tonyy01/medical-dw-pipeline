@@ -8,7 +8,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 SYNTHEA_DIR="$PROJECT_DIR/synthea"
-OUTPUT_DIR="$SYNTHEA/output"
+OUTPUT_DIR="$SYNTHEA_DIR/output"
 
 SYNTHEA_VERSION="2.10.0"
 SYNTHEA_JAR="$SYNTHEA_DIR/synthea.jar"

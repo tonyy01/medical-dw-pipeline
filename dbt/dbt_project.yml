@@ -29,6 +29,9 @@ models:
       +materialized: table
       +schema: dwd
       +tags: ["dwd"]
+      dim_date:
+        +materialized: table
+        +tags: ["dwd", "dimension"]
 
     dws:
       +materialized: table
@@ -39,12 +42,6 @@ models:
       +materialized: table
       +schema: ads
       +tags: ["ads"]
-
-    # dim_date 表由 dbt 生成（不需要外部依赖）
-    dwd:
-      dim_date:
-        +materialized: table
-        +tags: ["dwd", "dimension"]
 
 seeds:
   +schema: ods

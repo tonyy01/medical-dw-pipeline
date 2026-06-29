@@ -30,8 +30,8 @@ patient_summary AS (
         -- 入院间隔
         min(EXTRACT(DAY FROM (encounter_start - prev_admission))) AS days_between_admissions
     FROM patient_admissions
-    WHERE total_admissions > 1
     GROUP BY patient_sk, patient_id
+    HAVING count(*) > 1
 ),
 
 chronic_count AS (

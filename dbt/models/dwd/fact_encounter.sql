@@ -5,6 +5,7 @@
 -- ============================================================
 
 SELECT
+    row_number() OVER (ORDER BY e.encounter_id) AS encounter_sk,
     e.encounter_id,
     COALESCE(dp.patient_sk, -1) AS patient_sk,
     COALESCE(dpr.provider_sk, -1) AS provider_sk,

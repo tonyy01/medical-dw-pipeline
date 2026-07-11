@@ -261,5 +261,3 @@ ORDER BY total_admissions DESC;
 ```
 
 ---
-
-MIT

@@ -1,83 +1,84 @@
-# 医疗数据仓库 ETL Pipeline 🏥
+# Medical Data Warehouse ETL Pipeline 🏥
 
-> **从合成医疗数据到分层数据仓库的完整工程化实现**
+> **A production-grade data engineering pipeline: from synthetic medical data to a layered data warehouse**
 >
-> 作者：南方医科大学珠江医院 · 大数据中心
+> Author: Big Data Center, Zhujiang Hospital, Southern Medical University
 
 ---
 
-## 项目概览
+## Overview
 
-本项目展示了一个**生产级数据工程 Pipeline** 的完整构建过程，涵盖数据采集、清洗转换、维度建模、任务编排和质量监控。
+This project demonstrates a **complete production-level data engineering pipeline**, covering data ingestion, cleansing/transformation, dimensional modeling, task orchestration, and quality monitoring.
 
-使用 **Synthea**（开源医疗数据生成器）模拟病人数据，通过分层架构（ODS → DWD → DWS → ADS）构建医疗数据仓库，并用 Airflow 实现全流程自动化调度。
+It uses **Synthea** (an open-source synthetic patient generator) to simulate healthcare data and builds a layered data warehouse (ODS → DWD → DWS → ADS) via **dbt**, with the entire workflow orchestrated by **Apache Airflow**.
 
-### 核心能力
+### Core Capabilities
 
-| 领域 | 技术栈 |
-|------|--------|
-| **数据源** | Synthea 合成医疗数据（CSV） |
-| **ETL 开发** | Python (pandas, SQLAlchemy) |
-| **数据建模** | dbt-core (维度建模, Star Schema) |
-| **数据存储** | PostgreSQL |
-| **任务编排** | Apache Airflow |
-| **基础设施** | Docker Compose |
-| **代码质量** | Ruff, pre-commit, pytest |
+| Area | Stack |
+|------|-------|
+| **Data Source** | Synthea — open-source synthetic healthcare data (CSV) |
+| **ETL Engine** | Python (pandas, SQLAlchemy) |
+| **Data Modeling** | dbt-core (dimensional modeling, Star Schema) |
+| **Storage** | PostgreSQL 16 |
+| **Orchestration** | Apache Airflow |
+| **Infrastructure** | Docker Compose |
+| **Code Quality** | Ruff, pytest |
 
 ---
 
-## 架构设计
+## Architecture
 
 ```
-                   ┌─────────────────────┐
-                   │    Synthea           │
-                   │  (合成医疗数据生成器)   │
-                   └──────────┬──────────┘
-                              │ CSV 文件
-                              ▼
+                   ┌──────────────────────────┐
+                   │        Synthea            │
+                   │  (Synthetic Patient Data)  │
+                   └────────────┬─────────────┘
+                                │ CSV files
+                                ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 1: Extract (Python / pandas)              │
-│  → 读取 CSV, 数据类型推断, 空值处理              │
+│  → Read CSVs, type inference, null handling      │
 └──────────────────────┬──────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────┐
 │  Phase 2: Transform (Python)                     │
-│  → 清洗, 标准化, 列映射, 类型转换                │
+│  → Cleanse, standardize, column mapping,         │
+│    type casting, synthetic ID generation          │
 └──────────────────────┬──────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────┐
-│  Phase 3: Load (SQLAlchemy → PostgreSQL)         │
-│  → 写入 ODS 层 (原始数据, 仅做类型转换)          │
+│  Phase 3: Load (SQLAlchemy → PostgreSQL)          │
+│  → Write to ODS layer (raw, type-converted data) │
 └──────────────────────┬──────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────┐
-│              dbt 维度建模                         │
+│             dbt Dimensional Modeling              │
 ├─────────────────────────────────────────────────┤
-│  ODS (操作数据层) — 11 张原始表                   │
+│  ODS (Operation Data Store) — 11 raw tables      │
 │    ↓                                              │
-│  DWD (明细数据层) — 维度表 + 事实表 (Star Schema) │
+│  DWD (Detail Warehouse) — Star Schema            │
 │    ↓                                              │
-│  DWS (汇总数据层) — 按天/科室/患者群汇总          │
+│  DWS (Summary Warehouse) — Daily/Dept/Segment    │
 │    ↓                                              │
-│  ADS (应用数据层) — DRG 分析, 再入院风险           │
+│  ADS (Application Data Store) — DRG, Readmission │
 └─────────────────────────────────────────────────┘
                        ▼
 ┌─────────────────────────────────────────────────┐
-│          Airflow 自动调度 (每日 06:00)            │
+│     Airflow Auto-Scheduling (daily @ 06:00)      │
 │  check → etl → dbt(ods→dwd→dws→ads) → test     │
 └─────────────────────────────────────────────────┘
 ```
 
-### 数据分层说明
+### Data Layering
 
-| 层级 | Schema | 说明 | 物化策略 |
-|------|--------|------|----------|
-| **ODS** | `ods.*` | 操作数据层，与 Synthea CSV 结构一致，仅做类型转换 | View |
-| **DWD** | `dwd.*` | 明细数据层，星型维度建模（5 维 + 3 事实） | Table |
-| **DWS** | `dws.*` | 汇总数据层，按业务过程轻量聚合 | Table |
-| **ADS** | `ads.*` | 应用数据层，DRG 分析、再入院风险评估 | Table |
+| Layer | Schema | Description | Materialization |
+|-------|--------|-------------|----------------|
+| **ODS** | `ods.*` | Raw data mirroring Synthea CSV structure | - |
+| **DWD** | `public_dwd.*` | Dimensional star schema (5 dimensions + 3 facts) | Table |
+| **DWS** | `public_dws.*` | Lightweight business process aggregations | Table |
+| **ADS** | `public_ads.*` | Application layer — DRG analysis, readmission risk | Table |
 
-### 维度模型
+### Dimensional Model
 
 ```
 dim_patient ────────────┐
@@ -95,53 +96,56 @@ dim_diagnosis ──────────────────┘         
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 前置条件
+### Prerequisites
 
 - Python 3.11+
-- Docker & Docker Compose
-- Java 8+ (运行 Synthea 用)
-- 2 GB 可用内存
+- Docker & Docker Compose (optional, for containerized PostgreSQL)
+- Java 8+ (for Synthea)
+- 2 GB free RAM
 
-### 1. 克隆并配置环境
+### 1. Clone & Configure
 
 ```bash
 git clone <your-repo-url>
 cd medical-dw-pipeline
 
-# 创建虚拟环境
+# Create virtual environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 
-# 配置环境变量
+# Set up environment variables
 cp .env.example .env
 ```
 
-### 2. 启动数据库
+### 2. Start Database
 
 ```bash
+# Using Docker (recommended)
 docker compose up -d
-# 等待 PostgreSQL 就绪
-docker compose logs -f postgres  # 看到 "ready to accept connections" 即可
+
+# Or use a local PostgreSQL instance
+# Ensure a `medical_dw` database exists and run:
+# psql -d medical_dw -f sql/init_db.sql
 ```
 
-### 3. 生成模拟数据
+### 3. Generate Synthetic Data
 
 ```bash
-# 生成 1000 个病人的医疗数据
+# Generate 1,000 patients' healthcare data
 bash scripts/download_synthea.sh 1000
 ```
 
-### 4. 运行 ETL Pipeline
+### 4. Run ETL Pipeline
 
 ```bash
-# 一键执行 Extract → Transform → Load
+# One command: Extract → Transform → Load
 python -m etl.pipeline --verbose
 ```
 
-### 5. 运行 dbt 维度建模
+### 5. Run dbt Dimensional Modeling
 
 ```bash
 cd dbt
@@ -149,105 +153,128 @@ dbt run
 dbt test
 ```
 
-### 一键全流程
+### One-shot Full Pipeline
 
 ```bash
-make reset  # 停服务 → 重建 → 初始化 → ETL → dbt
+make reset  # Stop → rebuild → init → ETL → dbt
 ```
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 medical-dw-pipeline/
 │
-├── etl/                        # Python ETL 核心
-│   ├── config.py               # 配置管理（数据库、路径）
-│   ├── extract.py              # Phase 1: CSV 数据提取
-│   ├── transform.py            # Phase 2: 清洗与标准化
-│   ├── load.py                 # Phase 3: 写入 PostgreSQL ODS
-│   └── pipeline.py             # CLI 入口
+├── etl/                        # Python ETL core
+│   ├── config.py               # Configuration (DB, paths)
+│   ├── extract.py              # Phase 1: CSV data extraction
+│   ├── transform.py            # Phase 2: Data cleansing & standardization
+│   ├── load.py                 # Phase 3: Write to PostgreSQL ODS
+│   └── pipeline.py             # CLI entry point
 │
-├── dbt/                        # dbt 维度建模
-│   ├── dbt_project.yml         # dbt 项目配置
-│   ├── profiles.yml            # 数据库连接配置
+├── dbt/                        # dbt dimensional modeling
+│   ├── dbt_project.yml         # dbt project configuration
+│   ├── profiles.yml            # Database connection config
 │   ├── models/
-│   │   ├── ods/                # ODS 源定义
-│   │   ├── dwd/                # DWD 维度 + 事实表
-│   │   ├── dws/                # DWS 汇总表
-│   │   └── ads/                # ADS 应用层
-│   └── tests/                  # 数据质量测试
+│   │   ├── ods/                # ODS source definitions
+│   │   ├── dwd/                # DWD dimension + fact tables
+│   │   ├── dws/                # DWS aggregation tables
+│   │   └── ads/                # ADS application layer
+│   └── tests/                  # Data quality tests
 │
-├── airflow/                    # Airflow 编排
+├── airflow/                    # Airflow orchestration
 │   ├── Dockerfile
 │   └── dags/
 │       └── medical_etl_pipeline.py
 │
-├── sql/                        # SQL 脚本
-│   └── init_db.sql             # 数据库初始化
+├── sql/                        # SQL scripts
+│   └── init_db.sql             # Database initialization
 │
 ├── scripts/
-│   └── download_synthea.sh     # 数据生成脚本
+│   └── download_synthea.sh     # Data generation script
 │
-├── synthea/                    # Synthea 输出目录
-├── docker-compose.yml          # 基础设施
-├── pyproject.toml              # Python 项目配置
-├── Makefile                    # 常用命令
-└── README.md                   # 本文件
+├── synthea/                    # Synthea output directory
+├── docker-compose.yml          # Infrastructure
+├── pyproject.toml              # Python project config
+├── Makefile                    # Common commands
+└── README.md                   # This file
 ```
 
 ---
 
-## 技术亮点
+## Technical Highlights
 
-### 1. 可追溯的 ETL 设计
-- 每阶段独立日志，可单独运行/调试
-- 幂等写入（TRUNCATE + INSERT），支持重跑
-- 分批写入（默认 10,000 行/批），控制内存
+### 1. Traceable ETL Design
+- Each phase independently runnable and debuggable
+- Idempotent writes (TRUNCATE + INSERT) for safe re-runs
+- Batch processing (10,000 rows/chunk) for memory control
 
-### 2. 标准维度建模
-- Star Schema 设计，符合 Kimball 方法论
-- 代理键 + 自然键分离
-- 缓慢变化维度（SCD Type 1）支持
-- 日期维度表覆盖 2010-2030 年
+### 2. Standard Dimensional Modeling
+- Star Schema design following Kimball methodology
+- Surrogate key + natural key separation
+- SCD Type 1 support for slowly changing dimensions
+- Date dimension covering 2010–2030
 
-### 3. 数据质量保障
-- dbt source freshness 测试
-- 自定义断言测试（费用非负、年龄不超限等）
-- Airflow retry 机制（最多重试 1 次，5 分钟间隔）
+### 3. Data Quality Assurance
+- dbt source freshness and null/unique tests
+- Custom assertion tests (non-negative costs, valid ages, etc.)
+- Airflow retry mechanism (1 retry, 5-minute interval)
 
-### 4. 工程最佳实践
-- 类型注解全覆盖
-- 配置与代码分离（环境变量 + dataclass）
-- Makefile 一键操作
-- Docker Compose 开发/部署一体化
-
----
-
-## 适用场景分析
-
-本项目模拟的医疗数据仓库可以直接支撑以下业务分析：
-
-| 分析场景 | 对应模型 | 价值 |
-|----------|----------|------|
-| **DRG 分组费用分析** | `ads.drg_analysis` | 医保控费，按病种标化费用 |
-| **再入院风险评估** | `ads.readmission_risk` | 医疗质量管理，降低 30 天再入院率 |
-| **科室负荷监控** | `dws.agg_department_load` | 资源配置优化 |
-| **患者画像分析** | `dws.agg_patient_segment` | 精准健康管理 |
-| **就诊趋势分析** | `dws.agg_daily_admissions` | 业务量预测 |
+### 4. Engineering Best Practices
+- Full type annotations
+- Configuration separated from code (env vars + dataclasses)
+- Makefile one-command operations
+- Docker Compose for dev/prod parity
 
 ---
 
-## 扩展方向
+## Business Analysis Scenarios
 
-- [ ] **接入真实医疗数据**：替换 Synthea 数据源为 MIMIC-IV
-- [ ] **实时流处理**：增加 Kafka + Flink 处理实时设备数据
-- [ ] **数据可视化**：接入 Apache Superset / Evidence
-- [ ] **数据血缘**：集成 dbt 文档 + 血缘图
-- [ ] **CI/CD**：GitHub Actions 自动化测试
-- [ ] **数据湖**：增加 Iceberg / Hudi 支持历史版本
-- [ ] **数据治理**：增加元数据管理、数据字典
+| Scenario | Model | Value |
+|----------|-------|-------|
+| **DRG Cost Analysis** | `ads.drg_analysis` | Medical cost control, procedure-standardized costing |
+| **Readmission Risk** | `ads.readmission_risk` | Quality management, reducing 30-day readmissions |
+| **Department Load** | `dws.agg_department_load` | Resource allocation optimization |
+| **Patient Profiling** | `dws.agg_patient_segment` | Precision health management |
+| **Visit Trends** | `dws.agg_daily_admissions` | Volume forecasting |
+
+---
+
+## Example Queries
+
+```sql
+-- Which age group costs the most per encounter?
+SELECT age_group, round(avg(total_claim_cost), 2) AS avg_cost
+FROM public_dwd.fact_encounter fe
+JOIN public_dwd.dim_patient dp ON fe.patient_sk = dp.patient_sk
+GROUP BY age_group
+ORDER BY avg_cost DESC;
+
+-- What are the most expensive diagnoses?
+SELECT diagnosis_desc, avg_total_cost, median_total_cost
+FROM public_ads.drg_analysis
+ORDER BY avg_total_cost DESC
+LIMIT 10;
+
+-- High readmission risk patients
+SELECT patient_id, total_admissions, risk_level
+FROM public_ads.readmission_risk
+WHERE risk_level = '高风险'
+ORDER BY total_admissions DESC;
+```
+
+---
+
+## Future Extensions
+
+- [ ] **Real-world data source**: Replace Synthea with MIMIC-IV
+- [ ] **Streaming pipeline**: Add Kafka + Flink for real-time device data
+- [ ] **Visualization**: Integrate Apache Superset / Evidence
+- [ ] **Data lineage**: dbt docs + lineage graph
+- [ ] **CI/CD**: GitHub Actions for automated testing
+- [ ] **Data lake**: Iceberg / Hudi support for historical versions
+- [ ] **Data governance**: Metadata management, data dictionary
 
 ---
 

@@ -1,10 +1,6 @@
 # Medical Data Warehouse ETL Pipeline 🏥
 
-> **A production-grade data engineering pipeline: from synthetic medical data to a layered data warehouse**
->
-> Author: Big Data Center, Zhujiang Hospital, Southern Medical University
-
----
+**A production-grade data engineering pipeline: from synthetic medical data to a layered data warehouse**
 
 ## Overview
 
@@ -29,43 +25,43 @@ It uses **Synthea** (an open-source synthetic patient generator) to simulate hea
 ## Architecture
 
 ```
-                   ┌──────────────────────────┐
-                   │        Synthea            │
-                   │  (Synthetic Patient Data)  │
-                   └────────────┬─────────────┘
-                                │ CSV files
-                                ▼
+         ┌──────────────────────────────┐
+         │           Synthea            │
+         │   (Synthetic Patient Data)   │
+         └─────── ──────┬───────────────┘
+                        │ CSV files
+                        ▼
 ┌─────────────────────────────────────────────────┐
-│  Phase 1: Extract (Python / pandas)              │
-│  → Read CSVs, type inference, null handling      │
-└──────────────────────┬──────────────────────────┘
-                       ▼
+│       Phase 1: Extract (Python / pandas)        │
+│    Read CSVs, type inference, null handling     │
+└───────────────────────┬─────────────────────────┘
+                        ▼
 ┌─────────────────────────────────────────────────┐
-│  Phase 2: Transform (Python)                     │
-│  → Cleanse, standardize, column mapping,         │
-│    type casting, synthetic ID generation          │
-└──────────────────────┬──────────────────────────┘
-                       ▼
+│          Phase 2: Transform (Python)            │
+│    Cleanse, standardize, column mapping, type   │
+│        casting, synthetic ID generation         │
+└───────────────────────┬─────────────────────────┘
+                        ▼
 ┌─────────────────────────────────────────────────┐
-│  Phase 3: Load (SQLAlchemy → PostgreSQL)          │
-│  → Write to ODS layer (raw, type-converted data) │
-└──────────────────────┬──────────────────────────┘
-                       ▼
+│    Phase 3: Load (SQLAlchemy → PostgreSQL)      │ 
+│   Write to ODS layer (raw, type-converted data) │
+└───────────────────────┬─────────────────────────┘
+                        ▼
 ┌─────────────────────────────────────────────────┐
-│             dbt Dimensional Modeling              │
+│             dbt Dimensional Modeling            │
 ├─────────────────────────────────────────────────┤
-│  ODS (Operation Data Store) — 11 raw tables      │
-│    ↓                                              │
-│  DWD (Detail Warehouse) — Star Schema            │
-│    ↓                                              │
-│  DWS (Summary Warehouse) — Daily/Dept/Segment    │
-│    ↓                                              │
-│  ADS (Application Data Store) — DRG, Readmission │
-└─────────────────────────────────────────────────┘
-                       ▼
+│ ODS (Operation Data Store) — 11 raw tables      │
+│   ↓                                             │
+│ DWD (Detail Warehouse) — Star Schema            │
+│   ↓                                             │
+│ DWS (Summary Warehouse) — Daily/Dept/Segment    │
+│   ↓                                             │
+│ ADS (Application Data Store) — DRG, Readmission │
+└───────────────────────┬─────────────────────────┘
+                        ▼
 ┌─────────────────────────────────────────────────┐
-│     Airflow Auto-Scheduling (daily @ 06:00)      │
-│  check → etl → dbt(ods→dwd→dws→ads) → test     │
+│     Airflow Auto-Scheduling (daily @ 06:00)     │
+│   check → etl → dbt(ods→dwd→dws→ads) → test     │
 └─────────────────────────────────────────────────┘
 ```
 
@@ -265,19 +261,5 @@ ORDER BY total_admissions DESC;
 ```
 
 ---
-
-## Future Extensions
-
-- [ ] **Real-world data source**: Replace Synthea with MIMIC-IV
-- [ ] **Streaming pipeline**: Add Kafka + Flink for real-time device data
-- [ ] **Visualization**: Integrate Apache Superset / Evidence
-- [ ] **Data lineage**: dbt docs + lineage graph
-- [ ] **CI/CD**: GitHub Actions for automated testing
-- [ ] **Data lake**: Iceberg / Hudi support for historical versions
-- [ ] **Data governance**: Metadata management, data dictionary
-
----
-
-## License
 
 MIT
